@@ -1,12 +1,11 @@
-import React from 'react';
-import { StyleSheet, Platform } from 'react-native';
+import React, { useEffect } from 'react';
+import { StyleSheet, Platform, TouchableOpacity } from 'react-native';
 
-import { ExternalLink } from './ExternalLink';
 import { MonoText } from './StyledText';
 import { Text, View } from './Themed';
-import * as SQLite from 'expo-sqlite';
 
-import Colors from '@/constants/Colors';
+import * as SQLite from 'expo-sqlite';
+import * as FileSystem from 'expo-file-system';
 
 function openDatabase() {
   if (Platform.OS === 'web') {
@@ -19,13 +18,81 @@ function openDatabase() {
     };
   }
 
-  const db = SQLite.openDatabase('db.db');
+  const db = SQLite.openDatabase('test.db');
   return db;
 }
 
 const db = openDatabase();
 
+const fileSystemPath = async () => {
+  console.log(FileSystem.documentDirectory);
+};
+
+const insertDummyData = () => {
+  db.transaction(
+    (tx) => {
+      tx.executeSql('insert into items (text) values (?)', ['Dummy Data']);
+    },
+    (error) => {
+      console.log('Transaction error on inserting dummy data', error);
+    },
+    () => {
+      console.log('Inserted dummy data successfully');
+    }
+  );
+};
+
+const logData = () => {
+  db.transaction(
+    (tx) => {
+      tx.executeSql('select * from items', [], (_, { rows }) => {
+        console.log('rows array', rows._array);
+        console.log('rows', JSON.stringify(rows));
+      });
+    },
+    (error) => {
+      console.log('Transaction error on reading data', error);
+    },
+    () => {
+      console.log('Read data successfully');
+    }
+  );
+};
+
 export default function EditScreenInfo({ path }: { path: string }) {
+  useEffect(() => {
+    db.transaction((tx) => {
+      // tx.executeSql(
+      //   'drop table if exists items;',
+      //   [],
+      //   () => console.log('Table dropped successfully'),
+      //   (tx, error) => {
+      //     console.log('Error dropping table', error);
+      //     return false;
+      //   }
+      // );
+      tx.executeSql(
+        'create table if not exists items (id integer primary key not null, text text);',
+        [],
+        () => console.log('Table created successfully'),
+        (tx, error) => {
+          console.log('Error creating table', error);
+          return false; // Indicate not to roll back the transaction
+        }
+      );
+      tx.executeSql(
+        'PRAGMA table_info(items);',
+        [],
+        (_, { rows }) => console.log(JSON.stringify(rows)),
+        (tx, error) => {
+          console.log('Error checking table structure', error);
+          return false;
+        }
+      );
+    });
+    fileSystemPath();
+  }, []);
+
   return (
     <View>
       <View style={styles.getStartedContainer}>
@@ -53,19 +120,15 @@ export default function EditScreenInfo({ path }: { path: string }) {
           Change any of the text, save the file, and your app will automatically
           update.
         </Text>
-      </View>
 
-      {/* <View style={styles.helpContainer}>
-        <ExternalLink
-          style={styles.helpLink}
-          href='https://docs.expo.io/get-started/create-a-new-app/#opening-the-app-on-your-phonetablet'
-        >
-          <Text style={styles.helpLinkText} lightColor={Colors.light.tint}>
-            Tap here if your app doesn't automatically update after making
-            changes
-          </Text>
-        </ExternalLink>
-      </View> */}
+        <TouchableOpacity onPress={insertDummyData}>
+          <Text>Insert Dummy Data</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity onPress={logData}>
+          <Text>Log Data</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
